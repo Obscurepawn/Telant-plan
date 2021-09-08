@@ -19,14 +19,14 @@ func (server *Server) RawGet(_ context.Context, req *kvrpcpb.RawGetRequest) (res
 	resp = &kvrpcpb.RawGetResponse{}
 	reader, err := server.storage.Reader(nil)
 	if err != nil {
-		log.Error("[Server.RawGet] get reader failed:%v", err.Error())
+		log.Errorf("[Server.RawGet] get reader failed:%v", err.Error())
 		resp.Error = err.Error()
 		return
 	}
 
 	val, err := reader.GetCF(req.Cf, req.Key)
 	if err != nil {
-		log.Error("[Server.RawGet] get reader failed:%v", err.Error())
+		log.Errorf("[Server.RawGet] reader GetCF failed:%v", err.Error())
 		resp.Error = err.Error()
 		if err == badger.ErrKeyNotFound {
 			err = nil
@@ -52,7 +52,7 @@ func (server *Server) RawPut(_ context.Context, req *kvrpcpb.RawPutRequest) (res
 			},
 		},
 	}
-	log.Info("[server.RawPut] rawput batch:%v", batch)
+
 	if err = server.storage.Write(nil, batch); err != nil {
 		resp.Error = err.Error()
 		return
@@ -78,6 +78,9 @@ func (server *Server) RawDelete(_ context.Context, req *kvrpcpb.RawDeleteRequest
 	}
 
 	if err = server.storage.Write(nil, batch); err != nil {
+		if err == badger.ErrKeyNotFound {
+			err = nil
+		}
 		resp.Error = err.Error()
 		return
 	}
@@ -109,8 +112,13 @@ func (server *Server) RawScan(_ context.Context, req *kvrpcpb.RawScanRequest) (r
 			return resp, err
 		}
 		kvpairs = append(kvpairs, &kvrpcpb.KvPair{Key: iter.Item().Key(), Value: val})
+		iter.Next()
+		if !iter.Valid() {
+			break
+		}
 	}
 
 	resp.Kvs = kvpairs
+	log.Debugf("[Server.RawScan] rawscan resp:%v", resp)
 	return
 }
