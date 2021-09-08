@@ -32,10 +32,7 @@ func NewStandAloneStorage(conf *config.Config) *StandAloneStorage {
 
 func (s *StandAloneStorageReader) GetCF(cf string, key []byte) (resp []byte, err error) {
 	if resp, err = engine_util.GetCFFromTxn(s.tx, cf, key); err != nil {
-		log.Error("[StandAloneStorageReader.GetCF] GetCFFromTxn failed:%v", err.Error())
-		if err == badger.ErrKeyNotFound {
-			err = nil
-		}
+		log.Errorf("[StandAloneStorageReader.GetCF] GetCFFromTxn failed:%v", err.Error())
 	}
 	return
 }
@@ -75,16 +72,16 @@ func (s *StandAloneStorage) Write(ctx *kvrpcpb.Context, batch []storage.Modify) 
 	for _, modify := range batch {
 		if put, ok := modify.Data.(storage.Put); ok {
 			if err = engine_util.PutCF(s.db, put.Cf, put.Key, put.Value); err != nil {
-				log.Error("[StandAloneStorage.Write] PutCF failed:%v Put:%v", err.Error(), put)
+				log.Errorf("[StandAloneStorage.Write] PutCF failed:%v Put:%v", err.Error(), put)
 				return
 			}
 			continue
 		}
 		if del, ok := modify.Data.(storage.Delete); ok {
 			if err = engine_util.DeleteCF(s.db, del.Cf, del.Key); err != nil {
-				log.Error("[StandAloneStorage.Write] DeleteCF failed:%v Del:%v", err.Error(), del)
+				log.Errorf("[StandAloneStorage.Write] DeleteCF failed:%v Del:%v", err.Error(), del)
+				return
 			}
-			return
 		}
 	}
 	return nil
