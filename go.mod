@@ -24,7 +24,7 @@ require (
 	github.com/pingcap/tidb v1.1.0-beta.0.20210908054857-a7cba1608432
 	github.com/pingcap/tipb v0.0.0-20200212061130-c4d518eb1d60
 	github.com/pkg/errors v0.8.1
-	github.com/shirou/gopsutil v2.19.10+incompatible
+	github.com/shirou/gopsutil v3.21.8+incompatible
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.4.0
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20191023171146-3cf2f69b5738
