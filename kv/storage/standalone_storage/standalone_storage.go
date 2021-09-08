@@ -33,6 +33,9 @@ func NewStandAloneStorage(conf *config.Config) *StandAloneStorage {
 func (s *StandAloneStorageReader) GetCF(cf string, key []byte) (resp []byte, err error) {
 	if resp, err = engine_util.GetCFFromTxn(s.tx, cf, key); err != nil {
 		log.Error("[StandAloneStorageReader.GetCF] GetCFFromTxn failed:%v", err.Error())
+		if err == badger.ErrKeyNotFound {
+			err = nil
+		}
 	}
 	return
 }

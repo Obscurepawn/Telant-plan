@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 
+	"github.com/Connor1996/badger"
 	"github.com/pingcap-incubator/tinykv/kv/storage"
 	"github.com/pingcap-incubator/tinykv/log"
 	"github.com/pingcap-incubator/tinykv/proto/pkg/kvrpcpb"
@@ -24,6 +25,14 @@ func (server *Server) RawGet(_ context.Context, req *kvrpcpb.RawGetRequest) (res
 	}
 
 	val, err := reader.GetCF(req.Cf, req.Key)
+	if err != nil {
+		log.Error("[Server.RawGet] get reader failed:%v", err.Error())
+		resp.Error = err.Error()
+		if err == badger.ErrKeyNotFound {
+			err = nil
+			resp.NotFound = true
+		}
+	}
 	resp.Value = val
 	return
 }
@@ -39,9 +48,11 @@ func (server *Server) RawPut(_ context.Context, req *kvrpcpb.RawPutRequest) (res
 			Data: storage.Put{
 				Key:   req.Key,
 				Value: req.Value,
+				Cf:    req.Cf,
 			},
 		},
 	}
+	log.Info("[server.RawPut] rawput batch:%v", batch)
 	if err = server.storage.Write(nil, batch); err != nil {
 		resp.Error = err.Error()
 		return
@@ -83,7 +94,7 @@ func (server *Server) RawScan(_ context.Context, req *kvrpcpb.RawScanRequest) (r
 	reader, err := server.storage.Reader(nil)
 	if err != nil {
 		resp.Error = err.Error()
-		return 
+		return
 	}
 
 	iter := reader.IterCF(req.Cf)
