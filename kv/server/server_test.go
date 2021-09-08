@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/Connor1996/badger"
 	"github.com/pingcap-incubator/tinykv/kv/config"
 	"github.com/pingcap-incubator/tinykv/kv/storage"
 	"github.com/pingcap-incubator/tinykv/kv/storage/standalone_storage"
@@ -29,7 +30,11 @@ func Get(s *standalone_storage.StandAloneStorage, cf string, key []byte) ([]byte
 	if err != nil {
 		return nil, err
 	}
-	return reader.GetCF(cf, key)
+	resp, err := reader.GetCF(cf, key)
+	if err == badger.ErrKeyNotFound {
+		err = nil
+	}
+	return resp, err
 }
 
 func Iter(s *standalone_storage.StandAloneStorage, cf string) (engine_util.DBIterator, error) {
