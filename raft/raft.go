@@ -16,6 +16,9 @@ package raft
 
 import (
 	"errors"
+	"fmt"
+	"math/rand"
+	"time"
 
 	"github.com/pingcap-incubator/tinykv/log"
 	pb "github.com/pingcap-incubator/tinykv/proto/pkg/eraftpb"
@@ -165,16 +168,53 @@ func newRaft(c *Config) *Raft {
 	if err := c.validate(); err != nil {
 		panic(err.Error())
 	}
-	// Your Code Here (2A).
-	return &Raft{
+	// Your Code Here (2A)
+	log.Infof("[newRaft] config:%#v", c)
+
+	//set a rand seed for random electionTimeout
+	rand.Seed(time.Now().UnixNano())
+
+	//by Initialing storage to produce other empty raft nodes
+	hardState, confState, err := c.Storage.InitialState()
+	log.Infof("[newRaft] hardState:%#v,hardState:%#v", hardState, confState)
+	if err != nil {
+		errMsg := fmt.Sprintf("[newRaft] c.Storage.InitialState failed:%v", err.Error())
+		log.Error(errMsg)
+		panic(errMsg)
+	}
+
+	resp := &Raft{
 		id: c.ID,
+
+		//init all nodes to follower in the beginning
+		State: StateFollower,
 
 		//must satisfy electionTimeout > heartbeatTimeout
 		heartbeatTimeout: 2 * c.HeartbeatTick,
 		electionTimeout:  5 * c.ElectionTick,
-		RaftLog:          newLog(c.Storage),
-		Prs:              make(map[uint64]*Progress),
+
+		RaftLog: newLog(c.Storage),
+		Prs:     make(map[uint64]*Progress),
+		votes:   make(map[uint64]bool),
 	}
+
+	resp.RaftLog.committed = hardState.Commit
+	if c.Applied != 0 {
+		resp.RaftLog.applied = c.Applied
+	} else {
+		resp.RaftLog.applied, err = resp.RaftLog.storage.FirstIndex()
+		if err != nil {
+			errMsg := fmt.Sprintf("[newRaft] get first index failed:%v", err.Error())
+			log.Error(errMsg)
+			panic(errMsg)
+		}
+	}
+
+	for _, nodeID := range confState.Nodes {
+		resp.Prs[nodeID] = &Progress{}
+	}
+
+	return resp
 }
 
 // sendAppend sends an append RPC with new entries (if any) and the
@@ -206,19 +246,27 @@ func (r *Raft) tick() {
 			r.electionElapsed++
 			if r.electionElapsed >= r.electionTimeout {
 				/**Under normal circumstances r.electionElapsed >= r.electionTimeout should transfer the leader, but at this time the leader is still the original leader**/
-				log.Error("leader transfer failed!")
+				log.Errorf("[raft.tick] id:%v State:%v leader transfer failed!", r.id, r.State)
 				r.leadTransferee = None
 				r.electionElapsed = 0
 			}
 		}
+
+		if r.heartbeatElapsed > r.heartbeatTimeout {
+			log.Infof("[raft.tick] id:%v State:%v needs to send heartbeat packet ", r.id, r.State)
+			r.heartbeatElapsed = 0
+			//TODO: send heartbeat
+
+		}
 	case StateFollower, StateCandidate:
 		r.electionElapsed++
 		if r.electionElapsed >= r.electionTimeout {
-			log.Infof("id:%v State:%v electionElapsed(%v) >= electionTimeout(%v), so begin voting", r.id, r.State, r.electionElapsed, r.electionTimeout)
+			log.Infof("[raft.tick] id:%v State:%v electionElapsed(%v) >= electionTimeout(%v), so begin voting", r.id, r.State, r.electionElapsed, r.electionTimeout)
+			r.electionElapsed = 0
 		}
 		//TODO: vote
-	}
 
+	}
 }
 
 // becomeFollower transform this peer's state to Follower
@@ -229,6 +277,8 @@ func (r *Raft) becomeFollower(term uint64, lead uint64) {
 // becomeCandidate transform this peer's state to candidate
 func (r *Raft) becomeCandidate() {
 	// Your Code Here (2A).
+	r.State = StateCandidate
+
 }
 
 // becomeLeader transform this peer's state to leader
@@ -254,6 +304,17 @@ func (r *Raft) Step(m pb.Message) error {
 		}
 	case StateLeader:
 
+	}
+	return nil
+}
+
+func (r *Raft) StepFollower(m pb.Message) error {
+
+	//use m.MsgType will cause panic when m is nil
+	switch m.GetMsgType() {
+	case pb.MessageType_MsgHup:
+		r.becomeCandidate()
+	default:
 	}
 	return nil
 }
