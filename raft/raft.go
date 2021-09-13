@@ -17,6 +17,7 @@ package raft
 import (
 	"errors"
 
+	"github.com/pingcap-incubator/tinykv/log"
 	pb "github.com/pingcap-incubator/tinykv/proto/pkg/eraftpb"
 )
 
@@ -165,7 +166,15 @@ func newRaft(c *Config) *Raft {
 		panic(err.Error())
 	}
 	// Your Code Here (2A).
-	return nil
+	return &Raft{
+		id: c.ID,
+
+		//must satisfy electionTimeout > heartbeatTimeout
+		heartbeatTimeout: 2 * c.HeartbeatTick,
+		electionTimeout:  5 * c.ElectionTick,
+		RaftLog:          newLog(c.Storage),
+		Prs:              make(map[uint64]*Progress),
+	}
 }
 
 // sendAppend sends an append RPC with new entries (if any) and the
@@ -183,6 +192,33 @@ func (r *Raft) sendHeartbeat(to uint64) {
 // tick advances the internal logical clock by a single tick.
 func (r *Raft) tick() {
 	// Your Code Here (2A).
+	switch r.State {
+	case StateLeader:
+		/**
+		Whenever Tick() occurs, heartbeatTick must be added. Tick() ​​is called every certain time, and the number of Tick() is recorded by the value of heartbeatTick. And the value of heartbeatElapsed is expressed as the time since the last heartbeat packet was sent, which also means the number of times the Tick() is called, which means that the heartbeat packet needs to be sent after the tick is called a certain number of times.
+		**/
+		r.heartbeatElapsed++
+
+		/**
+		Because the leader may need to restart and other operations, sometimes the leader needs to actively transfer the power of the leader. Determine whether you need to actively transfer the power of the leader by whether leadTransferee is None
+		**/
+		if r.leadTransferee != None {
+			r.electionElapsed++
+			if r.electionElapsed >= r.electionTimeout {
+				/**Under normal circumstances r.electionElapsed >= r.electionTimeout should transfer the leader, but at this time the leader is still the original leader**/
+				log.Error("leader transfer failed!")
+				r.leadTransferee = None
+				r.electionElapsed = 0
+			}
+		}
+	case StateFollower, StateCandidate:
+		r.electionElapsed++
+		if r.electionElapsed >= r.electionTimeout {
+			log.Infof("id:%v State:%v electionElapsed(%v) >= electionTimeout(%v), so begin voting", r.id, r.State, r.electionElapsed, r.electionTimeout)
+		}
+		//TODO: vote
+	}
+
 }
 
 // becomeFollower transform this peer's state to Follower
@@ -205,10 +241,19 @@ func (r *Raft) becomeLeader() {
 // on `eraftpb.proto` for what msgs should be handled
 func (r *Raft) Step(m pb.Message) error {
 	// Your Code Here (2A).
+	if r.id != m.To {
+		r.votes[m.From] = false
+		return nil
+	}
 	switch r.State {
 	case StateFollower:
 	case StateCandidate:
+		switch m.MsgType {
+		case pb.MessageType_MsgHup:
+			r.votes[m.From] = true
+		}
 	case StateLeader:
+
 	}
 	return nil
 }
