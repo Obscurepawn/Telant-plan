@@ -1,7 +1,9 @@
 # The TinyKV Course
 
+This repository contains personal solutions and work in progress for the [TinyKV course](https://github.com/pingcap-incubator/tinykv). The course description below is retained for reference.
+
 ## schedule
-- 2021/9/8 **finish project 1 && bug free**
+- 2021/9/8: recorded completion of Project 1. Later projects remain in progress; use the project-specific tests to check the current implementation.
 
 This is a series of projects on a key-value storage system built with the Raft consensus algorithm. These projects are inspired by the famous [MIT 6.824](http://nil.csail.mit.edu/6.824/2018/index.html) course but aim to be closer to industry implementations. The whole course is pruned from [TiKV](https://github.com/tikv/tikv) and re-written in Go. After completing this course, you will have the knowledge to implement a horizontally scalable, highly available, key-value storage service with distributed transaction support and a better understanding of TiKV implementation.
 
@@ -32,11 +34,20 @@ Also, you’d better read the overview of TiKV and PD's design to get a general 
 First, please clone the repository with git to get the source code of the project.
 
 ``` bash
-git clone https://github.com/pingcap-incubator/tinykv.git
+git clone https://github.com/Obscurepawn/Telant-plan.git
+cd Telant-plan
 ```
 
-Then make sure you have [go](https://golang.org/doc/install) >= 1.13 toolchains installed. You should also have `make` installed.
-Now you can run `make` to check that everything is working as expected. You should see it runs successfully.
+Use Go 1.17 or newer, matching the language version in [go.mod](go.mod), and GNU Make with Bash. Dependency downloads require network access. The module path remains `github.com/pingcap-incubator/tinykv`; keep it unchanged when working in this checkout.
+
+From the repository root, build the servers and run the standalone-store tests:
+
+```bash
+make
+make project1
+```
+
+`make` writes `bin/tinykv-server` and `bin/tinyscheduler-server`. `make project1` runs the Project 1 tests in `kv/server`; a successful build alone does not validate the unfinished Raft and transaction exercises. Other project targets are listed in the [Makefile](Makefile).
 
 ### Overview of the code
 
